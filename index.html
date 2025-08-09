@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Passage Generator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React Libraries -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel to transpile JSX in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #0f172a; /* bg-slate-900 */
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useCallback } = React;
+
+        // --- CONSTANTS ---
+        const CEFR_LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+        const PASSAGE_FORMATS = ['General Passage', 'Informal Email', 'Formal Email', 'Public Notice', 'Advertisement', 'Short News Article', 'Memo', 'Text Message Chain', 'Blog Post', 'Product Review'];
+        const COMMON_TOPICS = ['Technology', 'Environment', 'Health', 'Education', 'Travel', 'Culture', 'History', 'Business'];
+        const GRADE_DATA = {
+            '6': { label: 'Grade 6', topics: ['My New School', 'My Home', 'My Friends', 'Favorite Holidays', 'A Day in My Life', 'School Clubs', 'My Pet'], wordCount: '80-100', skills: 'Describing places, people, and routines.' },
+            '7': { label: 'Grade 7', topics: ['My Hobbies', 'Health & Fitness', 'Community Service', 'School Life Around the World', 'Favorite Foods', 'Planning a Weekend Trip'], wordCount: '100-120', skills: 'Expressing opinions, discussing problems.' },
+            '8': { label: 'Grade 8', topics: ['Leisure Activities', 'City Life vs. Country Life', 'Review of a New Movie', 'A School Event', 'Global Customs and Traditions', 'A Pen Pal'], wordCount: '120-150', skills: 'Comparing lifestyles, describing traditions.' },
+            '9': { label: 'Grade 9', topics: ['Local Environment Issues', 'Future Cities', 'Teen Stress and Pressure', 'Natural Wonders of the World', 'A Part-time Job', 'Planning a Group Project'], wordCount: '150-180', skills: 'Discussing environmental issues, handling social pressures.' },
+            '10': { label: 'Grade 10', topics: ['The Impact of AI', 'Globalization', 'Lifelong Learning', 'The Changing World of Work', 'The Influence of Social Media', 'Requesting Information'], wordCount: '180-200', skills: 'Developing arguments, understanding complex texts.' },
+            '11': { label: 'Grade 11', topics: ['Genetic Engineering', 'Space Exploration', 'Preserving Cultural Heritage', 'Global Social Issues', 'Solving Environmental Challenges', 'Making a Formal Complaint'], wordCount: '200-220', skills: 'Analyzing different viewpoints, synthesizing information.' },
+            '12': { label: 'Grade 12', topics: ['Career Orientation Advice', 'Comparing Higher Education Systems', 'Protecting the Environment for the Future', 'Technological Advancements and Society', 'Preparing for Independent Life', 'A University Application Inquiry'], wordCount: '220-250', skills: 'Critical thinking, evaluating sources, formal writing.' },
+        };
+
+        // --- ICONS ---
+        const SpinnerIcon = ({ className }) => (
+            <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+        );
+        const SparklesIcon = ({ className }) => (
+            <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m11-13v4m-2-2h4m2 11h-4m2 2v-4M12 2v2m-2 18v2M7.7 7.7l1.4-1.4M17.7 7.7l-1.4-1.4M7.7 16.3l1.4 1.4M17.7 16.3l-1.4 1.4" />
+            </svg>
+        );
+        const ClipboardIcon = ({ className }) => (
+            <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+        );
+        const ClipboardCheckIcon = ({ className }) => (
+            <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+        );
+        const CheckCircleIcon = ({ className }) => (
+            <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        );
+        const XCircleIcon = ({ className }) => (
+            <svg className={className} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        );
+
+        // --- UI COMPONENTS ---
+        const Button = ({ onClick, disabled, children }) => (
+            <button
+                onClick={onClick}
+                disabled={disabled}
+                className="w-full flex items-center justify-center gap-2 px-5 py-3 text-base font-medium text-center text-white bg-gradient-to-r from-teal-500 to-cyan-600 rounded-lg hover:from-teal-600 hover:to-cyan-700 focus:ring-4 focus:ring-teal-500/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+                {children}
+            </button>
+        );
+
+        const Select = ({ label, id, value, onChange, children }) => (
+            <div>
+                <label htmlFor={id} className="block mb-2 text-sm font-medium text-slate-400">{label}</label>
+                <select id={id} value={value} onChange={onChange} className="bg-slate-700 border border-slate-600 text-slate-200 text-sm rounded-lg focus:ring-teal-500 focus:border-teal-500 block w-full p-2.5">
+                    {children}
+                </select>
+            </div>
+        );
+
+        const PassageDisplay = ({ passage, isLoading }) => {
+            const [copied, setCopied] = useState(false);
+
+            const handleCopy = () => {
+                if (!passage) return;
+                const textarea = document.createElement('textarea');
+                textarea.value = passage;
+                textarea.style.position = 'absolute';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                }
+                document.body.removeChild(textarea);
+            };
+
+            if (isLoading) {
+                return (
+                    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 min-h-[300px] flex items-center justify-center">
+                        <div className="text-center text-slate-400">
+                            <SpinnerIcon className="w-8 h-8 mx-auto animate-spin text-teal-500" />
+                            <p className="mt-4">Generating your passage...</p>
+                        </div>
+                    </div>
+                );
+            }
+            if (!passage) {
+                return (
+                    <div className="bg-slate-800/50 p-6 rounded-xl border-2 border-dashed border-slate-700 min-h-[300px] flex items-center justify-center">
+                        <div className="text-center text-slate-500">
+                            <h3 className="text-lg font-medium">Your generated passage will appear here</h3>
+                            <p className="text-sm">Verify your API key, select options, and click "Generate Passage".</p>
+                        </div>
+                    </div>
+                );
+            }
+            return (
+                <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
+                    <div className="flex justify-between items-start mb-4">
+                        <h2 className="text-2xl font-bold text-slate-100">Generated Passage</h2>
+                        <button onClick={handleCopy} title="Copy passage" className="text-slate-400 hover:text-white transition-colors p-2 rounded-md -mt-2 -mr-2">
+                            {copied ? <ClipboardCheckIcon className="w-5 h-5 text-teal-400" /> : <ClipboardIcon className="w-5 h-5" />}
+                        </button>
+                    </div>
+                    <p className="text-slate-300 leading-relaxed whitespace-pre-wrap">{passage}</p>
+                </div>
+            );
+        };
+        
+        const McqDisplay = ({ passage, mcqData, isLoading, error }) => {
+            const [showAnswers, setShowAnswers] = useState(false);
+            const [allCopied, setAllCopied] = useState(false);
+
+            const handleCopyAll = () => {
+                if (!passage || !mcqData || !mcqData.questions) return;
+
+                let fullContent = `PASSAGE\n--------------------\n${passage}\n\n`;
+                
+                fullContent += 'MULTIPLE-CHOICE QUESTIONS\n--------------------\n';
+                mcqData.questions.forEach((q, index) => {
+                    fullContent += `${index + 1}. ${q.question}\n`;
+                    q.options.forEach((opt, i) => {
+                        const letter = String.fromCharCode(65 + i);
+                        fullContent += `   ${letter}. ${opt}\n`;
+                    });
+                    fullContent += '\n';
+                });
+
+                fullContent += 'ANSWER KEY\n--------------------\n';
+                mcqData.questions.forEach((q, index) => {
+                    const correctOptionIndex = q.options.findIndex(opt => opt === q.answer);
+                    const correctOptionLetter = correctOptionIndex !== -1 ? String.fromCharCode(65 + correctOptionIndex) : 'N/A';
+                    fullContent += `${index + 1}. ${correctOptionLetter}\n`;
+                });
+
+                const textarea = document.createElement('textarea');
+                textarea.value = fullContent;
+                textarea.style.position = 'absolute';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    setAllCopied(true);
+                    setTimeout(() => setAllCopied(false), 2000);
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                }
+                document.body.removeChild(textarea);
+            };
+
+            if (isLoading) {
+                return (
+                    <div className="text-center text-slate-400">
+                        <SpinnerIcon className="w-6 h-6 mx-auto animate-spin text-teal-500" />
+                        <p className="mt-2 text-sm">Generating questions...</p>
+                    </div>
+                );
+            }
+            if (error) return <p className="text-red-400 text-sm">{error}</p>;
+            if (!mcqData || !mcqData.questions) return null;
+
+            return (
+                <div className="space-y-6">
+                    <h3 className="text-xl font-bold text-slate-200">Generated Questions</h3>
+                    {mcqData.questions.map((q, index) => (
+                        <div key={index} className="text-slate-300 text-sm">
+                            <p className="font-semibold mb-2">{index + 1}. {q.question}</p>
+                            <div className="space-y-1 pl-4">
+                                {q.options.map((opt, i) => (
+                                    <p key={i} className={`${showAnswers && opt === q.answer ? 'text-green-400 font-bold' : ''}`}>
+                                        {String.fromCharCode(65 + i)}. {opt}
+                                    </p>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                    <div className="flex items-center gap-6 mt-4 pt-4 border-t border-slate-700">
+                        <button 
+                            onClick={() => setShowAnswers(!showAnswers)}
+                            className="text-sm font-medium text-teal-400 hover:text-teal-300"
+                        >
+                            {showAnswers ? 'Hide Answers' : 'Show Answers'}
+                        </button>
+                        <button
+                            onClick={handleCopyAll}
+                            className="flex items-center gap-2 text-sm font-medium text-slate-400 hover:text-white transition-colors"
+                        >
+                            {allCopied ? <ClipboardCheckIcon className="w-4 h-4 text-teal-400" /> : <ClipboardIcon className="w-4 h-4" />}
+                            {allCopied ? 'Copied!' : 'Copy All'}
+                        </button>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- MAIN APP COMPONENT ---
+        const App = () => {
+            const [apiKey, setApiKey] = useState('');
+            const [apiKeyStatus, setApiKeyStatus] = useState('unverified'); // 'unverified', 'verifying', 'valid', 'invalid'
+            const [mode, setMode] = useState('cefr');
+            
+            // CEFR State
+            const [cefrLevel, setCefrLevel] = useState(CEFR_LEVELS[1]);
+            const [cefrPassageFormat, setCefrPassageFormat] = useState(PASSAGE_FORMATS[0]);
+            const [commonTopic, setCommonTopic] = useState(COMMON_TOPICS[0]);
+            const [customTopic, setCustomTopic] = useState('');
+            const [wordCount, setWordCount] = useState(150);
+
+            // Grade State
+            const [grade, setGrade] = useState('6');
+            const [gradeTopic, setGradeTopic] = useState(GRADE_DATA['6'].topics[0]);
+            const [gradePassageFormat, setGradePassageFormat] = useState(PASSAGE_FORMATS[0]);
+
+            // General State
+            const [passage, setPassage] = useState('');
+            const [isLoading, setIsLoading] = useState(false);
+            const [error, setError] = useState('');
+
+            // MCQ State
+            const [numberOfMcqs, setNumberOfMcqs] = useState(3);
+            const [mcqData, setMcqData] = useState(null);
+            const [isGeneratingMcqs, setIsGeneratingMcqs] = useState(false);
+            const [mcqError, setMcqError] = useState('');
+
+            useEffect(() => {
+                setGradeTopic(GRADE_DATA[grade].topics[0]);
+            }, [grade]);
+
+            const handleVerifyApiKey = useCallback(async () => {
+                if (!apiKey) {
+                    setApiKeyStatus('invalid');
+                    setError('API Key cannot be empty.');
+                    return;
+                }
+                setApiKeyStatus('verifying');
+                setError('');
+
+                const VERIFY_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                try {
+                    const response = await fetch(VERIFY_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ contents: [{ parts: [{ text: "hello" }] }] }) // Minimal payload for verification
+                    });
+
+                    if (response.ok) {
+                        setApiKeyStatus('valid');
+                    } else {
+                        const errData = await response.json();
+                        setApiKeyStatus('invalid');
+                        setError(errData.error?.message || 'Invalid API Key.');
+                    }
+                } catch (e) {
+                    setApiKeyStatus('invalid');
+                    setError('Verification failed. Check your network or for CORS issues.');
+                    console.error(e);
+                }
+            }, [apiKey]);
+            
+            const callGeminiAPI = useCallback(async (prompt, isJson = false) => {
+                if (apiKeyStatus !== 'valid') {
+                    const errorMessage = "Please verify your Gemini API key first.";
+                    setError(errorMessage);
+                    setMcqError(errorMessage);
+                    return null;
+                }
+                const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                
+                const payload = {
+                    contents: [{ parts: [{ text: prompt }] }],
+                    ...(isJson && {
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                        }
+                    })
+                };
+
+                try {
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        throw new Error(errData.error?.message || 'API request failed');
+                    }
+
+                    const data = await response.json();
+                    if (!data.candidates || !data.candidates[0].content.parts[0].text) {
+                        throw new Error("Received an invalid response from the API.");
+                    }
+                    return data.candidates[0].content.parts[0].text;
+                } catch (e) {
+                    console.error(e);
+                    const errorMessage = `API Error: ${e.message}.`;
+                    setError(errorMessage);
+                    setMcqError(errorMessage);
+                    setApiKeyStatus('invalid'); // The key might have been revoked or is now invalid
+                    return null;
+                }
+            }, [apiKey, apiKeyStatus]);
+            
+            const handleGenerate = useCallback(async () => {
+                setIsLoading(true);
+                setPassage('');
+                setError('');
+                setMcqData(null);
+                setMcqError('');
+
+                let topic, finalWordCount, format;
+                let prompt;
+
+                const dateInstruction = "When using dates, only include the date and month (e.g., 'August 9'), do not include the year.";
+
+                if (mode === 'cefr') {
+                    topic = commonTopic === 'Custom' ? customTopic : commonTopic;
+                    if (!topic) {
+                        setError('Please specify a topic.');
+                        setIsLoading(false);
+                        return;
+                    }
+                    finalWordCount = wordCount;
+                    format = cefrPassageFormat;
+                    
+                    prompt = `Generate a reading passage in the format of a ${format}. The topic of the ${format} is "${topic}". This is for an English learner at the ${cefrLevel} CEFR level. The passage should be approximately ${finalWordCount} words long and use appropriate language. ${dateInstruction} Do not include a title or any introductory text unless it's part of the format itself (like a subject line for an email).`;
+
+                } else { // 'grade' mode
+                    topic = gradeTopic;
+                    finalWordCount = GRADE_DATA[grade].wordCount;
+                    format = gradePassageFormat;
+
+                    prompt = `Generate a reading passage for a Grade ${grade} student in the format of a ${format}. The topic is "${topic}". The passage should be approximately ${finalWordCount} words long. The reading skills focus should be on "${GRADE_DATA[grade].skills}". ${dateInstruction} Do not include a title or any introductory text unless it is part of the format itself.`;
+                }
+                
+                const result = await callGeminiAPI(prompt);
+                
+                if (result) {
+                    setPassage(result);
+                }
+                setIsLoading(false);
+            }, [apiKeyStatus, mode, cefrLevel, cefrPassageFormat, commonTopic, customTopic, wordCount, grade, gradeTopic, gradePassageFormat, callGeminiAPI]);
+
+            const handleGenerateMcqs = useCallback(async () => {
+                if (!passage) return;
+
+                setIsGeneratingMcqs(true);
+                setMcqError('');
+                setMcqData(null);
+
+                const prompt = `Based on the following passage, generate ${numberOfMcqs} multiple-choice questions. For each question, provide one correct answer and three plausible distractors. The questions should test understanding of the passage.
+
+                Passage: "${passage}"
+
+                Return the output ONLY in a valid JSON format based on this structure:
+                {
+                  "questions": [
+                    {
+                      "question": "The text of the question goes here.",
+                      "options": [
+                        "The text for the first option.",
+                        "The text for the second option.",
+                        "The text for the third option.",
+                        "The text for the fourth option."
+                      ],
+                      "answer": "The text for the correct option. This must exactly match one of the strings in the 'options' array."
+                    }
+                  ]
+                }
+                Do not include markdown formatting or any text outside of the JSON object.`;
+
+                const result = await callGeminiAPI(prompt, true);
+                
+                if (result) {
+                    try {
+                        const cleanedResult = result.replace(/```json/g, '').replace(/```/g, '').trim();
+                        const parsedData = JSON.parse(cleanedResult);
+                        setMcqData(parsedData);
+                    } catch (e) {
+                        setMcqError("Failed to parse the questions. The format might be incorrect.");
+                        console.error("MCQ Parsing Error:", e, "Received:", result);
+                    }
+                } else {
+                    if (apiKeyStatus !== 'valid') setMcqError("Please verify your API key first.");
+                    else setMcqError("Failed to generate questions.");
+                }
+                setIsGeneratingMcqs(false);
+            }, [apiKeyStatus, passage, numberOfMcqs, callGeminiAPI]);
+
+
+            const renderCefrForm = () => (
+                <div className="space-y-6">
+                    <Select label="CEFR Level" id="cefr-level" value={cefrLevel} onChange={(e) => setCefrLevel(e.target.value)}>
+                        {CEFR_LEVELS.map(level => <option key={level} value={level}>{level}</option>)}
+                    </Select>
+
+                    <Select label="Passage Format" id="cefr-passage-format" value={cefrPassageFormat} onChange={(e) => setCefrPassageFormat(e.target.value)}>
+                        {PASSAGE_FORMATS.map(format => <option key={format} value={format}>{format}</option>)}
+                    </Select>
+                    
+                    <Select label="Topic" id="common-topic" value={commonTopic} onChange={(e) => setCommonTopic(e.target.value)}>
+                        {COMMON_TOPICS.map(topic => <option key={topic} value={topic}>{topic}</option>)}
+                        <option value="Custom">Custom Topic...</option>
+                    </Select>
+
+                    {commonTopic === 'Custom' && (
+                        <div>
+                            <label htmlFor="custom-topic" className="block mb-2 text-sm font-medium text-slate-400">Custom Topic</label>
+                            <input
+                                id="custom-topic" type="text" value={customTopic}
+                                onChange={(e) => setCustomTopic(e.target.value)}
+                                placeholder="e.g., The future of AI"
+                                className="bg-slate-700 border border-slate-600 text-slate-200 text-sm rounded-lg focus:ring-teal-500 focus:border-teal-500 block w-full p-2.5"
+                            />
+                        </div>
+                    )}
+                    
+                    <div>
+                        <label htmlFor="word-count" className="block mb-2 text-sm font-medium text-slate-400">Word Count (approx.)</label>
+                        <input
+                            id="word-count" type="number" value={wordCount}
+                            onChange={(e) => setWordCount(Number(e.target.value))}
+                            min="50" step="10"
+                            className="bg-slate-700 border border-slate-600 text-slate-200 text-sm rounded-lg focus:ring-teal-500 focus:border-teal-500 block w-full p-2.5"
+                        />
+                    </div>
+                </div>
+            );
+
+            const renderGradeForm = () => (
+                <div className="space-y-6">
+                    <Select label="Grade" id="grade-level" value={grade} onChange={(e) => setGrade(e.target.value)}>
+                        {Object.keys(GRADE_DATA).map(g => <option key={g} value={g}>{GRADE_DATA[g].label}</option>)}
+                    </Select>
+
+                    <Select label="Passage Format" id="grade-passage-format" value={gradePassageFormat} onChange={(e) => setGradePassageFormat(e.target.value)}>
+                        {PASSAGE_FORMATS.map(format => <option key={format} value={format}>{format}</option>)}
+                    </Select>
+                    
+                    <Select label="Topic" id="grade-topic" value={gradeTopic} onChange={(e) => setGradeTopic(e.target.value)}>
+                        {GRADE_DATA[grade].topics.map(topic => <option key={topic} value={topic}>{topic}</option>)}
+                    </Select>
+                    
+                    <div>
+                        <h3 className="block mb-2 text-sm font-medium text-slate-400">Approximate Word Count</h3>
+                        <p className="bg-slate-700/50 border border-slate-700 text-slate-300 text-sm rounded-lg block w-full p-2.5">{GRADE_DATA[grade].wordCount} words</p>
+                    </div>
+                    
+                    <div>
+                        <h3 className="block mb-2 text-sm font-medium text-slate-400">Reading Skills Focus</h3>
+                        <p className="text-slate-400 text-sm">{GRADE_DATA[grade].skills}</p>
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen p-4 sm:p-6 lg:p-8">
+                    <div className="max-w-7xl mx-auto">
+                        <header className="text-center mb-10">
+                            <h1 className="text-4xl sm:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-teal-400 to-cyan-500">
+                                AI Passage Generator
+                            </h1>
+                            <p className="mt-3 text-lg font-medium text-cyan-400">Made for Educators</p>
+                            <p className="mt-3 text-slate-400">by Mr. Anh Đinh (Đinh Hoàng Tuấn Anh)</p>
+                            <p className="text-slate-400">TOEIC: 955/990</p>
+                        </header>
+
+                        <main className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                            <div className="lg:col-span-2 bg-slate-800 p-6 rounded-xl border border-slate-700 h-fit">
+                                <div className="border-b border-slate-700 pb-6 mb-6">
+                                    <label htmlFor="api-key" className="block mb-2 text-sm font-medium text-slate-300">Your Gemini API Key</label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            id="api-key"
+                                            type="password"
+                                            value={apiKey}
+                                            onChange={(e) => {
+                                                setApiKey(e.target.value);
+                                                setApiKeyStatus('unverified');
+                                                setError('');
+                                            }}
+                                            placeholder="Enter your API key"
+                                            className="flex-grow bg-slate-700 border border-slate-600 text-slate-200 text-sm rounded-lg focus:ring-teal-500 focus:border-teal-500 block w-full p-2.5"
+                                        />
+                                        <button
+                                            onClick={handleVerifyApiKey}
+                                            disabled={apiKeyStatus === 'verifying' || !apiKey}
+                                            className="px-4 py-2.5 text-sm font-medium text-white bg-slate-600 hover:bg-slate-500 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            {apiKeyStatus === 'verifying' ? <SpinnerIcon className="w-5 h-5 animate-spin" /> : 'Verify'}
+                                        </button>
+                                    </div>
+                                    <div className="mt-2 text-xs h-4">
+                                        {apiKeyStatus === 'valid' && <p className="text-green-400 flex items-center gap-1"><CheckCircleIcon className="w-4 h-4" /> API Key is valid.</p>}
+                                        {apiKeyStatus === 'invalid' && error && <p className="text-red-400 flex items-center gap-1"><XCircleIcon className="w-4 h-4" /> {error}</p>}
+                                        {apiKeyStatus === 'unverified' && apiKey && <p className="text-slate-500">Click "Verify" to check your key.</p>}
+                                    </div>
+                                </div>
+
+                                <div className="flex border-b border-slate-700 mb-6">
+                                    <button onClick={() => setMode('cefr')} className={`px-4 py-2 text-sm font-medium transition-colors ${mode === 'cefr' ? 'border-b-2 border-teal-500 text-teal-400' : 'text-slate-400 hover:text-white'}`}>By CEFR Level</button>
+                                    <button onClick={() => setMode('grade')} className={`px-4 py-2 text-sm font-medium transition-colors ${mode === 'grade' ? 'border-b-2 border-teal-500 text-teal-400' : 'text-slate-400 hover:text-white'}`}>By Grade</button>
+                                </div>
+                                
+                                {mode === 'cefr' ? renderCefrForm() : renderGradeForm()}
+
+                                <div className="mt-8">
+                                    <Button onClick={handleGenerate} disabled={isLoading || apiKeyStatus !== 'valid'}>
+                                        {isLoading ? <SpinnerIcon className="w-5 h-5 animate-spin"/> : <SparklesIcon className="w-5 h-5"/>}
+                                        <span>{isLoading ? 'Generating...' : 'Generate Passage'}</span>
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="lg:col-span-3">
+                                <PassageDisplay passage={passage} isLoading={isLoading} />
+                                
+                                {passage && !isLoading && (
+                                    <div className="mt-6 bg-slate-800/50 border border-slate-700 rounded-xl p-6">
+                                        <div>
+                                            <h3 className="text-xl font-bold text-slate-200 mb-4">Generate MCQs</h3>
+                                            <div className="flex flex-col sm:flex-row gap-4 items-center">
+                                                <div className="w-full sm:w-auto flex-1">
+                                                    <label htmlFor="mcq-count" className="block mb-2 text-sm font-medium text-slate-400">Number of Questions</label>
+                                                    <input
+                                                        id="mcq-count" type="number" value={numberOfMcqs}
+                                                        onChange={(e) => setNumberOfMcqs(Math.max(1, Number(e.target.value)))}
+                                                        min="1" max="10" step="1"
+                                                        className="bg-slate-700 border border-slate-600 text-slate-200 text-sm rounded-lg focus:ring-teal-500 focus:border-teal-500 block w-full p-2.5"
+                                                    />
+                                                </div>
+                                                <div className="w-full sm:w-auto sm:self-end">
+                                                    <Button onClick={handleGenerateMcqs} disabled={isGeneratingMcqs || !passage || apiKeyStatus !== 'valid'}>
+                                                        {isGeneratingMcqs ? <SpinnerIcon className="w-5 h-5 animate-spin"/> : <SparklesIcon className="w-5 h-5"/>}
+                                                        <span>{isGeneratingMcqs ? 'Generating...' : 'Generate MCQs'}</span>
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        {(isGeneratingMcqs || mcqData || mcqError) && (
+                                            <div className="mt-6">
+                                                <hr className="border-slate-700 mb-6" />
+                                                <McqDisplay passage={passage} mcqData={mcqData} isLoading={isGeneratingMcqs} error={mcqError} />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </main>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- RENDER THE APP ---
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+
+    </script>
+</body>
+</html>
